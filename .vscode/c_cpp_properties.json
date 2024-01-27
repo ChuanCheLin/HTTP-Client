@@ -1,0 +1,10 @@
+{
+    "configurations": [
+      {
+        "name": "Linux",
+        "cStandard": "gnu11"
+      }
+    ],
+    "version": 4
+  }
+  
