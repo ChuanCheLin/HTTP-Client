@@ -18,77 +18,125 @@
 
 #define MAXDATASIZE 100 // max number of bytes we can get at once 
 
-// get sockaddr, IPv4 or IPv6:
-void *get_in_addr(struct sockaddr *sa)
-{
-	if (sa->sa_family == AF_INET) {
-		return &(((struct sockaddr_in*)sa)->sin_addr);
-	}
+#define MAX_HOST_LEN 255
+#define MAX_PATH_LEN 1024
 
-	return &(((struct sockaddr_in6*)sa)->sin6_addr);
+// Structure to hold the URL components
+typedef struct {
+    char protocol[6]; // We will only support HTTP, so 6 chars (+ null terminator) is enough
+    char hostname[MAX_HOST_LEN];
+    char port[6]; // A port number can be up to 5 digits long
+    char path[MAX_PATH_LEN];
+} ParsedUrl;
+
+// Function to parse the URL
+int parse_url(const char *url, ParsedUrl *parsed_url) {
+    // Initialize the structure with zeros
+    memset(parsed_url, 0, sizeof(ParsedUrl));
+
+    // Copy the URL into a local buffer that we can modify
+    char url_copy[MAX_HOST_LEN + MAX_PATH_LEN];
+    strncpy(url_copy, url, sizeof(url_copy));
+    url_copy[sizeof(url_copy) - 1] = '\0'; // Ensure null-termination
+
+    char *protocol_ptr = strstr(url_copy, "://");
+    if (protocol_ptr == NULL) {
+        fprintf(stderr, "Error: URL does not contain '://'\n");
+        return -1;
+    }
+    
+    // Extract the protocol
+    strncpy(parsed_url->protocol, url_copy, protocol_ptr - url_copy);
+    parsed_url->protocol[protocol_ptr - url_copy] = '\0';
+
+    // Check if the protocol is HTTP
+    if (strcmp(parsed_url->protocol, "http") != 0) {
+        fprintf(stderr, "Error: Only 'http' protocol is supported\n");
+        return -1;
+    }
+
+    // Move past the "://"
+    char *hostname_ptr = protocol_ptr + 3;
+    
+    // Look for the first slash after the protocol to find the end of the hostname and start of path
+    char *path_ptr = strchr(hostname_ptr, '/');
+    if (path_ptr) {
+        // Extract the path
+        strncpy(parsed_url->path, path_ptr, sizeof(parsed_url->path));
+        parsed_url->path[sizeof(parsed_url->path) - 1] = '\0';
+        
+        // Null-terminate the hostname at the start of the path
+        *path_ptr = '\0';
+    } else {
+        // If there's no path, set path to "/"
+        strcpy(parsed_url->path, "/");
+    }
+
+    // Look for a colon in the hostname to find a port
+    char *port_ptr = strchr(hostname_ptr, ':');
+    if (port_ptr) {
+        // Extract the port
+        strncpy(parsed_url->port, port_ptr + 1, sizeof(parsed_url->port));
+        parsed_url->port[sizeof(parsed_url->port) - 1] = '\0';
+        
+        // Null-terminate the hostname at the start of the port
+        *port_ptr = '\0';
+    } else {
+        // If there's no port, set to default HTTP port "80"
+        strcpy(parsed_url->port, "80");
+    }
+
+    // Copy the hostname into the structure
+    strncpy(parsed_url->hostname, hostname_ptr, sizeof(parsed_url->hostname));
+    parsed_url->hostname[sizeof(parsed_url->hostname) - 1] = '\0';
+
+    return 0;
 }
 
 int main(int argc, char *argv[])
 {
-	int sockfd, numbytes;  
-	char buf[MAXDATASIZE];
-	struct addrinfo hints, *servinfo, *p;
-	int rv;
-	char s[INET6_ADDRSTRLEN];
+    if (argc != 2) {
+        fprintf(stderr, "usage: http_client http://hostname[:port]/path_to_file\n");
+        exit(1);
+    }
 
-	if (argc != 2) {
-	    fprintf(stderr,"usage: client hostname\n");
-	    exit(1);
-	}
+    char *url = argv[1];
+    char *hostname; // Extracted hostname
+    char *port; // Extracted port or default to 80
+    char *path; // Extracted path
 
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
+    ParsedUrl parsed_url;
+    if (parse_url(argv[1], &parsed_url) < 0) {
+        fprintf(stderr, "Error parsing URL\n");
+        return 1;
+    }
 
-	if ((rv = getaddrinfo(argv[1], PORT, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return 1;
-	}
+    printf("Protocol: %s\n", parsed_url.protocol);
+    printf("Hostname: %s\n", parsed_url.hostname);
+    printf("Port: %s\n", parsed_url.port);
+    printf("Path: %s\n", parsed_url.path);
 
-	// loop through all the results and connect to the first we can
-	for(p = servinfo; p != NULL; p = p->ai_next) {
-		if ((sockfd = socket(p->ai_family, p->ai_socktype,
-				p->ai_protocol)) == -1) {
-			perror("client: socket");
-			continue;
-		}
+    return 0;
 
-		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-			close(sockfd);
-			perror("client: connect");
-			continue;
-		}
+    // TODO: Establish a TCP connection to the server on the extracted or default port
+    // ...
 
-		break;
-	}
+    // TODO: Form the HTTP GET request using the extracted path (and possibly hostname)
+    // ...
 
-	if (p == NULL) {
-		fprintf(stderr, "client: failed to connect\n");
-		return 2;
-	}
+    // TODO: Send the HTTP GET request
+    // ...
 
-	inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
-			s, sizeof s);
-	printf("client: connecting to %s\n", s);
+    // TODO: Read the server's response
+    // ...
 
-	freeaddrinfo(servinfo); // all done with this structure
+    // TODO: Handle the server's response, including the case where the file is not found
+    // ...
 
-	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
-	    perror("recv");
-	    exit(1);
-	}
+    // TODO: Save the response body to a file named "output" if the request was successful
+    // ...
 
-	buf[numbytes] = '\0';
-
-	printf("client: received '%s'\n",buf);
-
-	close(sockfd);
-
-	return 0;
+    // TODO: Close the socket
+    // ...
 }
 
