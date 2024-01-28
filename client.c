@@ -17,6 +17,8 @@
 #define MAX_HOST_LEN 255
 #define MAX_PATH_LEN 1024
 
+#define BUFFER_SIZE 4096
+
 // Structure to hold the URL components
 typedef struct {
     char protocol[6]; // We will only support HTTP, so 6 chars (+ null terminator) is enough
@@ -110,6 +112,54 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+// Function to write the response body or an error message to a file named "output"
+void write_to_file(FILE *fp, const char *data, size_t len) {
+    if (fp != NULL) {
+        fwrite(data, 1, len, fp);
+    }
+}
+
+void handle_response(int sockfd) {
+    char buffer[BUFFER_SIZE];
+    int numbytes;
+    int header_received = 0;
+    FILE *fp = NULL;
+    char *body;
+
+    // Read the response in a loop
+    while ((numbytes = recv(sockfd, buffer, BUFFER_SIZE - 1, 0)) > 0) {
+        if (!header_received) {
+            // Search for the end of the header
+            body = strstr(buffer, "\r\n\r\n");
+            if (body != NULL) {
+                header_received = 1;
+                body += 4; // Move past the "\r\n\r\n"
+                // Open the output file now that we know we're starting to receive the body
+                fp = fopen("output", "wb");
+                if (fp == NULL) {
+                    perror("Error opening file");
+                    break;
+                }
+                // Write the first part of the body to the file
+                write_to_file(fp, body, numbytes - (body - buffer));
+            }
+        } else {
+            // We're already past the header, so just write to the file
+            write_to_file(fp, buffer, numbytes);
+        }
+        memset(buffer, 0, BUFFER_SIZE); // Clear the buffer
+    }
+
+    if (numbytes < 0) {
+        perror("recv");
+    }
+
+    if (fp != NULL) {
+        fclose(fp);
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
@@ -193,7 +243,7 @@ int main(int argc, char *argv[])
 
     printf("client: sent %d bytes to server\n", bytes_sent);
 
-    // ... for receiving and handling the server response
+	handle_response(sockfd);
 
     // Close the socket when done
     close(sockfd);
