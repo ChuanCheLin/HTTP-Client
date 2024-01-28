@@ -92,12 +92,22 @@ int parse_url(const char *url, ParsedUrl *parsed_url) {
 #define REQUEST_TEMPLATE "GET %s HTTP/1.1\r\n" \
                          "Host: %s\r\n" \
                          "User-Agent: CustomHTTPClientByEricLin/1.0\r\n" \
-                         "Connection: close\r\n" \
+                         "Connection: Keep-Alive\r\n" \
                          "\r\n"
 
 void create_get_request(const char *hostname, const char *port, const char *path, char *http_request) {
     // Ensure the request buffer is large enough for the request
     sprintf(http_request, REQUEST_TEMPLATE, path, hostname);
+}
+
+// get sockaddr, IPv4 or IPv6:
+void *get_in_addr(struct sockaddr *sa)
+{
+	if (sa->sa_family == AF_INET) {
+		return &(((struct sockaddr_in*)sa)->sin_addr);
+	}
+
+	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
 int main(int argc, char *argv[])
@@ -124,23 +134,75 @@ int main(int argc, char *argv[])
     printf("Port: %s\n", parsed_url.port);
     printf("Path: %s\n", parsed_url.path);
 
-	char http_request[1024]; // Adjust size as needed for your request
+	char http_request[1024]; // Adjust size as needed
 
     // Create the HTTP GET request string
     create_get_request(parsed_url.hostname, parsed_url.port, parsed_url.path, http_request);
 
     printf("HTTP GET Request:\n%s\n", http_request);
 
+	// TCP connection
+	int sockfd; // Socket file descriptor
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
+    
+    // Set up the hints structure for the type of socket we want
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC; // Use IPv4 or IPv6, whichever
+    hints.ai_socktype = SOCK_STREAM;
+
+    // Get server address info
+    if ((rv = getaddrinfo(parsed_url.hostname, parsed_url.port, &hints, &servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return 1;
+    }
+
+    // Loop through all the results and connect to the first we can
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+            perror("client: socket");
+            continue;
+        }
+
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(sockfd);
+            perror("client: connect");
+            continue;
+        }
+
+        break; // If we get here, we must have connected successfully
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "client: failed to connect\n");
+        return 2;
+    }
+
+    inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr), s, sizeof s);
+    printf("client: connecting to %s\n", s);
+
+    // Now that we're connected, send the HTTP GET request
+    int len = strlen(http_request);
+    int bytes_sent = send(sockfd, http_request, len, 0);
+    if (bytes_sent == -1) {
+        perror("send");
+        // handle the send error
+        return 3;
+    }
+
+    printf("client: sent %d bytes to server\n", bytes_sent);
+
+    // ... for receiving and handling the server response
+
+    // Close the socket when done
+    close(sockfd);
+
+    // Clean up the addrinfo
+    freeaddrinfo(servinfo);
+
+
     return 0;
-
-    // TODO: Establish a TCP connection to the server on the extracted or default port
-    // ...
-
-    // TODO: Form the HTTP GET request using the extracted path (and possibly hostname)
-    // ...
-
-    // TODO: Send the HTTP GET request
-    // ...
 
     // TODO: Read the server's response
     // ...
