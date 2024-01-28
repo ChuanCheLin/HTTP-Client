@@ -39,7 +39,7 @@ int parse_url(const char *url, ParsedUrl *parsed_url) {
 
     char *protocol_ptr = strstr(url_copy, "://");
     if (protocol_ptr == NULL) {
-        fprintf(stderr, "Error: URL does not contain '://'\n");
+        // fprintf(stderr, "Error: URL does not contain '://'\n");
         return -1;
     }
     
@@ -49,7 +49,14 @@ int parse_url(const char *url, ParsedUrl *parsed_url) {
 
     // Check if the protocol is HTTP
     if (strcmp(parsed_url->protocol, "http") != 0) {
-        fprintf(stderr, "Error: Only 'http' protocol is supported\n");
+        // Write "INVALIDPROTOCOL" to the output file
+        FILE *fp = fopen("output", "wb");
+        if (fp) {
+            fputs("INVALIDPROTOCOL", fp);
+            fclose(fp);
+        } else {
+            perror("Error opening file");
+        }
         return -1;
     }
 
@@ -182,7 +189,7 @@ void handle_response(int sockfd) {
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
-        fprintf(stderr, "usage: http_client http://hostname[:port]/path_to_file\n");
+        // fprintf(stderr, "usage: http_client http://hostname[:port]/path_to_file\n");
         exit(1);
     }
 
@@ -194,21 +201,21 @@ int main(int argc, char *argv[])
 	// url parsing
     ParsedUrl parsed_url;
     if (parse_url(argv[1], &parsed_url) < 0) {
-        fprintf(stderr, "Error parsing URL\n");
+        // fprintf(stderr, "Error parsing URL\n");
         return 1;
     }
-
-    printf("Protocol: %s\n", parsed_url.protocol);
-    printf("Hostname: %s\n", parsed_url.hostname);
-    printf("Port: %s\n", parsed_url.port);
-    printf("Path: %s\n", parsed_url.path);
+	
+    // printf("Protocol: %s\n", parsed_url.protocol);
+    // printf("Hostname: %s\n", parsed_url.hostname);
+    // printf("Port: %s\n", parsed_url.port);
+    // printf("Path: %s\n", parsed_url.path);
 
 	char http_request[1024]; // Adjust size as needed
 
     // Create the HTTP GET request string
     create_get_request(parsed_url.hostname, parsed_url.port, parsed_url.path, http_request);
 
-    printf("HTTP GET Request:\n%s\n", http_request);
+    // printf("HTTP GET Request:\n%s\n", http_request);
 
 	// TCP connection
 	int sockfd; // Socket file descriptor
@@ -223,7 +230,7 @@ int main(int argc, char *argv[])
 
     // Get server address info
     if ((rv = getaddrinfo(parsed_url.hostname, parsed_url.port, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        // fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return 1;
     }
 
@@ -244,12 +251,20 @@ int main(int argc, char *argv[])
     }
 
     if (p == NULL) {
-        fprintf(stderr, "client: failed to connect\n");
-        return 2;
+        // Could not connect to any of the addresses
+        FILE *fp = fopen("output", "wb");
+        if (fp) {
+            fputs("NOCONNECTION", fp);
+            fclose(fp);
+        } else {
+            perror("Error opening file");
+        }
+        freeaddrinfo(servinfo); // All done with this structure
+        return 2; // Return a non-zero value to indicate failure
     }
 
     inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr), s, sizeof s);
-    printf("client: connecting to %s\n", s);
+    // printf("client: connecting to %s\n", s);
 
     // Now that we're connected, send the HTTP GET request
     int len = strlen(http_request);
@@ -260,7 +275,7 @@ int main(int argc, char *argv[])
         return 3;
     }
 
-    printf("client: sent %d bytes to server\n", bytes_sent);
+    // printf("client: sent %d bytes to server\n", bytes_sent);
 
 	handle_response(sockfd);
 
@@ -272,17 +287,5 @@ int main(int argc, char *argv[])
 
 
     return 0;
-
-    // TODO: Read the server's response
-    // ...
-
-    // TODO: Handle the server's response, including the case where the file is not found
-    // ...
-
-    // TODO: Save the response body to a file named "output" if the request was successful
-    // ...
-
-    // TODO: Close the socket
-    // ...
 }
 
