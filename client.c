@@ -39,7 +39,7 @@ int parse_url(const char *url, ParsedUrl *parsed_url) {
 
     char *protocol_ptr = strstr(url_copy, "://");
     if (protocol_ptr == NULL) {
-        // fprintf(stderr, "Error: URL does not contain '://'\n");
+        fprintf(stderr, "Error: URL does not contain '://'\n");
         return -1;
     }
     
@@ -189,7 +189,7 @@ void handle_response(int sockfd) {
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
-        // fprintf(stderr, "usage: http_client http://hostname[:port]/path_to_file\n");
+        fprintf(stderr, "usage: http_client http://hostname[:port]/path_to_file\n");
         exit(1);
     }
 
@@ -201,7 +201,7 @@ int main(int argc, char *argv[])
 	// url parsing
     ParsedUrl parsed_url;
     if (parse_url(argv[1], &parsed_url) < 0) {
-        // fprintf(stderr, "Error parsing URL\n");
+        fprintf(stderr, "Error parsing URL\n");
         return 1;
     }
 	
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
 
     // Get server address info
     if ((rv = getaddrinfo(parsed_url.hostname, parsed_url.port, &hints, &servinfo)) != 0) {
-        // fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return 1;
     }
 
