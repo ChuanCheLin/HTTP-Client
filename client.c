@@ -1,7 +1,3 @@
-/*
-** client.c -- a stream socket client demo
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -93,6 +89,17 @@ int parse_url(const char *url, ParsedUrl *parsed_url) {
     return 0;
 }
 
+#define REQUEST_TEMPLATE "GET %s HTTP/1.1\r\n" \
+                         "Host: %s\r\n" \
+                         "User-Agent: CustomHTTPClientByEricLin/1.0\r\n" \
+                         "Connection: close\r\n" \
+                         "\r\n"
+
+void create_get_request(const char *hostname, const char *port, const char *path, char *http_request) {
+    // Ensure the request buffer is large enough for the request
+    sprintf(http_request, REQUEST_TEMPLATE, path, hostname);
+}
+
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
@@ -105,6 +112,7 @@ int main(int argc, char *argv[])
     char *port; // Extracted port or default to 80
     char *path; // Extracted path
 
+	// url parsing
     ParsedUrl parsed_url;
     if (parse_url(argv[1], &parsed_url) < 0) {
         fprintf(stderr, "Error parsing URL\n");
@@ -115,6 +123,13 @@ int main(int argc, char *argv[])
     printf("Hostname: %s\n", parsed_url.hostname);
     printf("Port: %s\n", parsed_url.port);
     printf("Path: %s\n", parsed_url.path);
+
+	char http_request[1024]; // Adjust size as needed for your request
+
+    // Create the HTTP GET request string
+    create_get_request(parsed_url.hostname, parsed_url.port, parsed_url.path, http_request);
+
+    printf("HTTP GET Request:\n%s\n", http_request);
 
     return 0;
 
