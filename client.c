@@ -123,31 +123,50 @@ void handle_response(int sockfd) {
     char buffer[BUFFER_SIZE];
     int numbytes;
     int header_received = 0;
-    FILE *fp = NULL;
+    int status_code = 0;
     char *body;
+    FILE *fp = NULL;
 
     // Read the response in a loop
     while ((numbytes = recv(sockfd, buffer, BUFFER_SIZE - 1, 0)) > 0) {
+        buffer[numbytes] = '\0'; // Null-terminate the buffer to make it a valid C string
         if (!header_received) {
             // Search for the end of the header
             body = strstr(buffer, "\r\n\r\n");
             if (body != NULL) {
                 header_received = 1;
-                body += 4; // Move past the "\r\n\r\n"
-                // Open the output file now that we know we're starting to receive the body
-                fp = fopen("output", "wb");
-                if (fp == NULL) {
-                    perror("Error opening file");
-                    break;
+                *body = '\0'; // Null-terminate the headers
+
+                // Parse the headers to get the status code
+                char *status_line = strtok(buffer, "\r\n");
+                sscanf(status_line, "HTTP/%*d.%*d %d", &status_code);
+
+                // Check the status code
+                if (status_code == 404) {
+                    // File not found, write "FILENOTFOUND" and exit
+                    fp = fopen("output", "wb");
+                    if (fp) {
+                        fputs("FILENOTFOUND", fp);
+                        fclose(fp);
+                    } else {
+                        perror("Error opening file");
+                    }
+                    return; // Stop processing since we've handled the 404 case
+                } else {
+                    // For all other status codes, proceed to read the body
+                    fp = fopen("output", "wb");
+                    if (fp == NULL) {
+                        perror("Error opening file");
+                        return;
+                    }
+                    body += 4; // Move past the "\r\n\r\n"
+                    write_to_file(fp, body, numbytes - (body - buffer));
                 }
-                // Write the first part of the body to the file
-                write_to_file(fp, body, numbytes - (body - buffer));
             }
         } else {
             // We're already past the header, so just write to the file
             write_to_file(fp, buffer, numbytes);
         }
-        memset(buffer, 0, BUFFER_SIZE); // Clear the buffer
     }
 
     if (numbytes < 0) {
