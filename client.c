@@ -231,6 +231,13 @@ int main(int argc, char *argv[])
     // Get server address info
     if ((rv = getaddrinfo(parsed_url.hostname, parsed_url.port, &hints, &servinfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		FILE *fp = fopen("output", "wb");
+        if (fp) {
+            fputs("NOCONNECTION", fp);
+            fclose(fp);
+        } else {
+            perror("Error opening file");
+        }
         return 1;
     }
 
